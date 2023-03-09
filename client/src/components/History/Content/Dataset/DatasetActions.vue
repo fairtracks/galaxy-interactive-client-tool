@@ -115,7 +115,7 @@ export default {
             );
         },
         isInteractiveClientToolJob() {
-          return this.item.name.includes("ProTo") && !this.item.name.includes("service")
+          return (this.item.name.includes("ProTo") || this.item.name.includes("FAIRtracks")) && !this.item.name.includes("service")
         },
         showVisualizations() {
             // TODO: Check hasViz, if visualizations are activated in the config
