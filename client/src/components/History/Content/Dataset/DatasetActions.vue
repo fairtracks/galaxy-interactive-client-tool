@@ -136,7 +136,14 @@ export default {
             this.$router.push(this.itemUrls.showDetails);
         },
         onRerun() {
-            this.$router.push(`/root?job_id=${this.item.creating_job}`, { force: true });
+            const jobId = this.item.creating_job
+            if (this.item.from_interactive_client_tool){
+                const route = this.$router.resolve(`/tool_runner/interactive_client_rerun?job_id=${jobId}`);
+                window.open(route.href, 'galaxy_main');
+                // window.history.pushState(null, '', route.href)
+            } else {
+                this.$router.push(`/root?job_id=${jobId}`, { force: true });
+            }
         },
         onVisualize() {
             const title = `Visualization of ${this.item.name || ""}`;

@@ -1640,6 +1640,15 @@ class Job(Base, JobLike, UsesCreateAndUpdateTime, Dictifiable, Serializable):
         param_dict = {p.name: p.value for p in self.parameters}
         return param_dict
 
+    def from_interactive_client_tool(self, app):
+        """
+        Return True if the tool that created this dataset is an interactive client tool
+        """
+        from galaxy.tools import InteractiveClientTool  # to avoid circular dependency
+
+        tool = app.toolbox.get_tool(self.tool_id, tool_version=self.tool_version)
+        return isinstance(tool, InteractiveClientTool)
+
     def check_if_output_datasets_deleted(self):
         """
         Return true if all of the output datasets associated with this job are

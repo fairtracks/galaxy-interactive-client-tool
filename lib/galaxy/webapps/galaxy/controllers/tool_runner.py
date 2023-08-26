@@ -7,6 +7,7 @@ from markupsafe import escape
 
 import galaxy.util
 from galaxy import web
+from galaxy.managers.jobs import JobManager
 from galaxy.tools import DataSourceTool, InteractiveClientTool
 from galaxy.web import (
     error,
@@ -35,6 +36,12 @@ class ToolRunner(BaseUIController):
     def default(self, trans, tool_id=None, **kwd):
         """Catches the tool id and redirects as needed"""
         return self.index(trans, tool_id=tool_id, **kwd)
+
+    def __get_job(self, trans, job_id):
+        decoded_job_id = self.decode_id(job_id)
+        job_manager = JobManager(self.app)
+        job = job_manager.get_accessible_job(trans, decoded_job_id)
+        return job
 
     def __get_tool(self, tool_id, tool_version=None, get_loaded_tools_by_lineage=False, set_selected=False):
         tool_version_select_field, tools, tool = self.get_toolbox().get_tool_components(
@@ -126,10 +133,8 @@ class ToolRunner(BaseUIController):
             else:
                 raise Exception("Failed to get job information for dataset hid %d" % data.hid)
 
-            log.debug(job.tool_id)
-            tool = self.__get_tool(job.tool_id)
-            if isinstance(tool, InteractiveClientTool):
-                return self.interactive_client_redirect(trans, tool_id=job.tool_id, param_dict=job.get_param_values(self.app))
+            if job.from_interactive_client_tool(self.app):
+                return self.interactive_client_rerun(trans, job_id=job_id)
 
         return trans.response.send_redirect(url_for(controller="root", job_id=job_id))
 
@@ -155,23 +160,34 @@ class ToolRunner(BaseUIController):
 
         if isinstance(tool, DataSourceTool):
             link = url_for(tool.action, **tool.get_static_param_values(trans))
-        #elif isinstance(tool, InteractiveClientTool):
+        # elif isinstance(tool, InteractiveClientTool):
         #    link = self.interactive_tool_redirect(tool, trans)
         else:
             link = url_for(controller="tool_runner", tool_id=tool.id)
         return trans.response.send_redirect(link)
 
     @web.expose
+    def interactive_client_rerun(self, trans, job_id=None):
+        if job_id is None:
+            error("'job_id' parameter is required")
+
+        job = self.__get_job(trans, job_id)
+        tool = self.__get_tool(job.tool_id)
+
+        if not isinstance(tool, InteractiveClientTool):
+            error(f"Job '{job_id}' not created by interactive client tool")
+
+        return self.interactive_client_redirect(trans, tool_id=job.tool_id, param_dict=job.get_param_values(self.app))
+
+    @web.expose
     def interactive_client_redirect(self, trans, tool_id=None, param_dict=None):
         if tool_id is None:
             return trans.response.send_redirect(url_for(controller="root", action="welcome"))
+
         tool = self.__get_tool(tool_id)
         # No tool matching the tool id, display an error (shouldn't happen)
         if not tool:
-            log.error("interactive_client_redirect called with tool id '%s' but no such tool exists", tool_id)
-            trans.log_event("Tool id '%s' does not exist" % tool_id)
-            trans.response.status = 404
-            return trans.show_error_message("Tool '%s' does not exist." % (escape(tool_id)))
+            error(f"interactive_client_redirect called with tool_id '{tool_id}' but no such tool exists")
 
         link = None
         if isinstance(tool, InteractiveClientTool):
@@ -180,31 +196,42 @@ class ToolRunner(BaseUIController):
             for key, param in tool.inputs.items():
                 args[key] = param.get_initial_value(trans, None)
             if param_dict is not None:
-                #client_params = json.loads(param_dict['param_dict'])
+                # client_params = json.loads(param_dict['param_dict'])
                 args.update(param_dict)
 
-            interactive_tool_id = args['interactive_tool_id']
-            interactive_tool_entry_name = args['interactive_tool_entry_name']
+            # Backwards compatibility with prev proto2 tools - can be removed
+            interactive_tool_id = args["interactive_tool_id"]
+            interactive_tool_entry_name = args["interactive_tool_entry_name"]
+
             try:
-                interactive_tool_id, interactive_tool_entry_name = tool.action.split(':')
+                interactive_tool_id, interactive_tool_entry_name = tool.action.split(":")
             except Exception as e:
                 log.error(e)
+
+            # redundant with above - can be refactored
             interactive_tool = self.__get_tool(interactive_tool_id)
             if not interactive_tool:
-                log.error("interactive_client_redirect called with interactive tool id '%s' but no such tool exists", interactive_tool_id)
-                trans.log_event("Tool id '%s' does not exist" % interactive_tool_id)
-                trans.response.status = 404
-                return trans.show_error_message("Tool '%s' does not exist." % (escape(interactive_tool_id)))
+                error(
+                    f"interactive_client_redirect called with interactive tool id '{interactive_tool_id}' but no such tool exists"
+                )
 
             log.debug("'%s' '%s'", interactive_tool.name, interactive_tool_entry_name)
+
             entry_points = self.app.interactivetool_manager.get_nonterminal_for_user_by_trans(trans)
             for entry_point in entry_points:
-                if entry_point.name == args['interactive_tool_entry_name']:
+                if entry_point.name == interactive_tool_entry_name:
                     target = self.app.interactivetool_manager.target_if_active(trans, entry_point)
+
             if target:
                 link = url_for(target, **args)
             else:
-                log.error('no target for: %s' % interactive_tool.name)
-                return trans.show_error_message("Required interactive tool not running. Click to start: <a href=\"%s\">%s</a>"
-                                                % (url_for(controller='tool_runner', tool_id=interactive_tool_id, runtool_btn='Y'), escape(interactive_tool.name)))
+                log.error("no target for: %s" % interactive_tool.name)
+                return trans.show_error_message(
+                    'Required interactive tool not running. Click to start: <a href="%s">%s</a>'
+                    % (
+                        url_for(controller="tool_runner", tool_id=interactive_tool_id, runtool_btn="Y"),
+                        escape(interactive_tool.name),
+                    )
+                )
+
         return trans.response.send_redirect(link)
