@@ -23,7 +23,7 @@
             :tool-config="toolConfig"
             :current-version="currentVersion"
             :show-tool="showTool"
-            :disabled-tool="disabledTool"
+            :disable-tool="disableTool"
             @onSetError="onSetError"
             @onChangeVersion="onChangeVersion">
             <template v-slot:tool-messages>
@@ -71,7 +71,7 @@ export default {
     },
     data() {
         return {
-            disabledTool: false,
+            disableTool: false,
             showLoading: true,
             showTool: false,
             showErrorDialog: false,
@@ -135,7 +135,7 @@ export default {
         },
         requestTool(newVersion) {
             this.currentVersion = newVersion || this.currentVersion;
-            this.disabledTool = true;
+            this.disableTool = true;
             console.debug("ToolForm - Requesting tool.", this.id);
 
             return getToolFormData(this.id, this.currentVersion, this.job_id, this.history_id)
@@ -163,7 +163,7 @@ export default {
                     });
                 })
                 .finally(() => {
-                    this.disabledTool = false;
+                    this.disableTool = false;
                     this.showLoading = false;
                 });
         },
