@@ -27,15 +27,8 @@
             @onSetError="onSetError"
             @onChangeVersion="onChangeVersion">
             <template v-slot:tool-messages>
-                <FormMessage
-                    v-if="errorObj.message && !errorObj.dialog"
-                    variant="danger"
-                    :message="errorObj.message"
-                    :persistent="true" />
-                <FormMessage
-                    v-if="messageObj.message && !messageObj.topLevel"
-                    :variant="messageObj.variant"
-                    :message="messageObj.message" />
+                <FormMessage v-if="!errorObj.dialog" variant="danger" :message="errorObj.message" :persistent="true" />
+                <FormMessage v-if="!messageObj.topLevel" :variant="messageObj.variant" :message="messageObj.message" />
             </template>
         </ToolForm>
     </div>
@@ -96,20 +89,13 @@ export default {
         },
     },
     watch: {
-        toolConfig: {
-            immediate: true,
-            handler() {
-                // this.onSetMessage(null);
-                this.onSetError(null);
-            },
+        toolConfig() {
+            this.onSetError(null);
         },
-        showErrorDialog: {
-            immediate: true,
-            handler(showErrorDialog) {
-                if (!showErrorDialog) {
-                    this.onSetError(null);
-                }
-            },
+        showErrorDialog(showErrorDialog) {
+            if (!showErrorDialog) {
+                this.onSetError(null);
+            }
         },
     },
     created() {

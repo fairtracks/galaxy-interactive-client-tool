@@ -192,24 +192,14 @@ export default {
         },
     },
     watch: {
-        // TODO: as functions?
-        toolConfig: {
-            immediate: true,
-            handler(newToolConfig) {
-                this.formConfig = newToolConfig;
-            },
+        toolConfig(newToolConfig) {
+            this.formConfig = newToolConfig;
         },
-        showTool: {
-            immediate: true,
-            handler(newShowTool) {
-                this.showForm = newShowTool;
-            },
+        showTool(newShowTool) {
+            this.showForm = newShowTool;
         },
-        disableTool: {
-            immediate: true,
-            handler(newDisableTool) {
-                this.disabled = newDisableTool;
-            },
+        disableTool(newDisableTool) {
+            this.disabled = newDisableTool;
         },
         currentHistoryId() {
             this.onHistoryChange();
@@ -263,6 +253,13 @@ export default {
             this.$emit("onSetError", errorObj);
         },
         onExecute(config, historyId) {
+            this.$emit("onSetError", {
+                dialog: true,
+                message: "",
+                title: "Job submission rejected.",
+                content: "jobResponse",
+            });
+            return;
             if (this.validationInternal) {
                 this.validationScrollTo = this.validationInternal.slice();
                 return;
