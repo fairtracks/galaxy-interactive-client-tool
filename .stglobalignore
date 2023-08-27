@@ -63,6 +63,9 @@ node_modules
 # Full config dict
 /config
 
+# Plugins
+/static/plugins
+
 # Syncthing
 .stversions
 .syncthing*
