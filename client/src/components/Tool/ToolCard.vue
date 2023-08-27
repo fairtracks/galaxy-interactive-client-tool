@@ -1,11 +1,10 @@
 <script setup>
 import Heading from "components/Common/Heading";
-import FormMessage from "components/Form/FormMessage";
 import ToolFooter from "components/Tool/ToolFooter";
 import ToolHelp from "components/Tool/ToolHelp";
 import { getAppRoot } from "onload/loadConfig";
 import { storeToRefs } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 
 import { useUserStore } from "@/stores/userStore";
 
@@ -40,14 +39,6 @@ const props = defineProps({
         type: Object,
         required: true,
     },
-    messageText: {
-        type: String,
-        required: true,
-    },
-    messageVariant: {
-        type: String,
-        default: "info",
-    },
     disabled: {
         type: Boolean,
         default: false,
@@ -62,23 +53,14 @@ const props = defineProps({
     },
 });
 
-const emit = defineEmits(["onChangeVersion", "updatePreferredObjectStoreId"]);
+const emit = defineEmits(["onChangeVersion", "onSetError", "updatePreferredObjectStoreId"]);
 
 function onChangeVersion(v) {
     emit("onChangeVersion", v);
 }
 
-const errorText = ref(null);
-
-watch(
-    () => props.id,
-    () => {
-        errorText.value = null;
-    }
-);
-
 function onSetError(e) {
-    errorText.value = e;
+    emit("onSetError", e);
 }
 
 const { currentUser, isAnonymous } = storeToRefs(useUserStore());
@@ -160,8 +142,6 @@ function onUpdatePreferredObjectStoreId(selectedToolPreferredObjectStoreId) {
         </div>
 
         <div id="tool-card-body">
-            <FormMessage variant="danger" :message="errorText" :persistent="true" />
-            <FormMessage :variant="props.messageVariant" :message="props.messageText" />
             <slot name="body" />
             <div v-if="props.disabled" class="portlet-backdrop" />
         </div>
