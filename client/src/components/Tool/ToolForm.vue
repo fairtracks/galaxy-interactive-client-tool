@@ -16,8 +16,8 @@
             :disabled="disabled || showExecuting"
             :allow-object-store-selection="config.object_store_allows_id_selection"
             :preferred-object-store-id="preferredObjectStoreId"
-            @onSetError="onSetError"
             @onChangeVersion="onChangeVersion"
+            @onSetError="onSetError"
             @updatePreferredObjectStoreId="onUpdatePreferredObjectStoreId">
             <template v-slot:body>
                 <slot name="tool-messages" />
@@ -243,14 +243,14 @@ export default {
                     this.disabled = false;
                 });
         },
-        onUpdatePreferredObjectStoreId(preferredObjectStoreId) {
-            this.preferredObjectStoreId = preferredObjectStoreId;
-        },
         onChangeVersion(newVersion) {
             this.$emit("onChangeVersion", newVersion);
         },
         onSetError(errorObj) {
             this.$emit("onSetError", errorObj);
+        },
+        onUpdatePreferredObjectStoreId(preferredObjectStoreId) {
+            this.preferredObjectStoreId = preferredObjectStoreId;
         },
         onExecute(config, historyId) {
             if (this.validationInternal) {

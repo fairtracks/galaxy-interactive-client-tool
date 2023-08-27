@@ -24,8 +24,8 @@
             :current-version="currentVersion"
             :show-tool="showTool"
             :disable-tool="disableTool"
-            @onSetError="onSetError"
-            @onChangeVersion="onChangeVersion">
+            @onChangeVersion="onChangeVersion"
+            @onSetError="onSetError">
             <template v-slot:tool-messages>
                 <FormMessage v-if="!errorObj.dialog" variant="danger" :message="errorObj.message" :persistent="true" />
                 <FormMessage v-if="!messageObj.topLevel" :variant="messageObj.variant" :message="messageObj.message" />
