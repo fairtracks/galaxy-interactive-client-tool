@@ -55,12 +55,12 @@ const props = defineProps({
 
 const emit = defineEmits(["onChangeVersion", "onSetError", "updatePreferredObjectStoreId"]);
 
-function onChangeVersion(v) {
-    emit("onChangeVersion", v);
+function onChangeVersion(newVersion) {
+    emit("onChangeVersion", newVersion);
 }
 
-function onSetError(e) {
-    emit("onSetError", e);
+function onSetError(errorObj) {
+    emit("onSetError", errorObj);
 }
 
 const { currentUser, isAnonymous } = storeToRefs(useUserStore());
@@ -84,7 +84,7 @@ function onUpdatePreferredObjectStoreId(selectedToolPreferredObjectStoreId) {
 </script>
 
 <template>
-    <div class="position-relative">
+    <div class="position-relative" itemscope="itemscope" itemtype="https://schema.org/CreativeWork">
         <div class="underlay sticky-top" />
         <div class="tool-header sticky-top bg-secondary px-2 py-1 rounded">
             <div class="d-flex justify-content-between">

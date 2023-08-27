@@ -1,23 +1,52 @@
 <template>
     <div v-if="currentUser && currentHistoryId">
+        <b-alert :show="messageObj.message && messageObj.topLevel" :variant="messageObj.variant">
+            {{ messageObj.message }}
+        </b-alert>
+
+        <LoadingSpan v-if="showLoading" message="Loading Tool" />
+
+        <b-modal v-model="showErrorDialog" size="sm" :title="errorObj.title | l" scrollable ok-only>
+            <b-alert v-if="errorObj.message" show variant="danger">
+                {{ errorObj.message }}
+            </b-alert>
+            <b-alert show variant="warning">
+                The server could not complete this request. Please verify your parameter settings, retry submission and
+                contact the Galaxy Team if this error persists. A transcript of the submitted data is shown below.
+            </b-alert>
+            <small class="text-muted">
+                <pre>{{ errorContentPretty }}</pre>
+            </small>
+        </b-modal>
+
         <ToolForm
-            :form-config-prop="formConfig"
+            :tool-config="toolConfig"
             :current-version="currentVersion"
-            :show-loading="showLoading"
-            :show-form-prop="showForm"
-            :disabled-prop="disabled"
-            :message-show="messageShow"
-            :message-variant="messageVariant"
-            :message-text="messageText"
-            @onChangeVersion="onChangeVersion" />
+            :show-tool="showTool"
+            :disabled-tool="disabledTool"
+            @onSetError="onSetError"
+            @onChangeVersion="onChangeVersion">
+            <template v-slot:tool-messages>
+                <FormMessage
+                    v-if="errorObj.message && !errorObj.dialog"
+                    variant="danger"
+                    :message="errorObj.message"
+                    :persistent="true" />
+                <FormMessage
+                    v-if="messageObj.message && !messageObj.topLevel"
+                    :variant="messageObj.variant"
+                    :message="messageObj.message" />
+            </template>
+        </ToolForm>
     </div>
 </template>
 
 <script>
+import FormMessage from "components/Form/FormMessage";
+import LoadingSpan from "components/LoadingSpan";
 import { mapState } from "pinia";
-
-import { useHistoryStore } from "@/stores/historyStore";
-import { useUserStore } from "@/stores/userStore";
+import { useHistoryStore } from "stores/historyStore";
+import { useUserStore } from "stores/userStore";
 
 import { getToolFormData } from "./services";
 
@@ -25,6 +54,8 @@ import ToolForm from "./ToolForm.vue";
 
 export default {
     components: {
+        LoadingSpan,
+        FormMessage,
         ToolForm,
     },
     props: {
@@ -47,53 +78,106 @@ export default {
     },
     data() {
         return {
-            disabled: false,
+            disabledTool: false,
             showLoading: true,
-            showForm: false,
-            formConfig: {},
-            messageShow: false,
-            messageVariant: "",
-            messageText: "",
+            showTool: false,
+            showErrorDialog: false,
+            toolConfig: {},
+            messageObj: this.getDefaultMessageObj(),
+            errorObj: this.getDefaultErrorObj(),
             currentVersion: this.version,
         };
     },
     computed: {
         ...mapState(useUserStore, ["currentUser"]),
         ...mapState(useHistoryStore, ["currentHistoryId"]),
+        errorContentPretty() {
+            return JSON.stringify(this.errorObj.content, null, 4);
+        },
+    },
+    watch: {
+        toolConfig: {
+            immediate: true,
+            handler() {
+                // this.onSetMessage(null);
+                this.onSetError(null);
+            },
+        },
+        showErrorDialog: {
+            immediate: true,
+            handler(showErrorDialog) {
+                if (!showErrorDialog) {
+                    this.onSetError(null);
+                }
+            },
+        },
     },
     created() {
         this.requestTool();
     },
     methods: {
+        getDefaultMessageObj() {
+            return {
+                topLevel: false,
+                variant: "info",
+                message: null,
+            };
+        },
+        getDefaultErrorObj() {
+            return {
+                dialog: false,
+                message: null,
+                title: null,
+                content: null,
+            };
+        },
         onChangeVersion(newVersion) {
             this.requestTool(newVersion);
         },
+        onSetMessage(messageObj) {
+            this.messageObj = this.getDefaultMessageObj();
+            if (messageObj) {
+                this.messageObj = { ...this.messageObj, ...messageObj };
+            }
+        },
+        onSetError(errorObj) {
+            this.errorObj = this.getDefaultErrorObj();
+            if (errorObj) {
+                this.errorObj = { ...this.errorObj, ...errorObj };
+            }
+            this.showErrorDialog = this.errorObj.dialog;
+        },
         requestTool(newVersion) {
             this.currentVersion = newVersion || this.currentVersion;
-            this.disabled = true;
+            this.disabledTool = true;
             console.debug("ToolForm - Requesting tool.", this.id);
+
             return getToolFormData(this.id, this.currentVersion, this.job_id, this.history_id)
                 .then((data) => {
-                    if (data.model_class == "InteractiveClientTool") {
-                        console.log(data);
-                        //galaxy_main.location = Galaxy.root + 'tool_runner/rerun?job_id=' + this.job_id;
-                    }
-                    this.formConfig = data;
-                    // this.remapAllowed = this.job_id && data.job_remap;
-                    this.showForm = true;
-                    this.messageShow = false;
+                    this.toolConfig = data;
+                    this.showTool = true;
+
                     if (newVersion) {
-                        this.messageVariant = "success";
-                        this.messageText = `Now you are using '${data.name}' version ${data.version}, id '${data.id}'.`;
+                        this.onSetMessage({
+                            topLevel: false,
+                            variant: "success",
+                            message: `Now you are using '${data.name}' version ${data.version}, id '${data.id}'.`,
+                        });
+                    } else {
+                        this.onSetMessage(null);
                     }
                 })
                 .catch((error) => {
-                    this.messageVariant = "danger";
-                    this.messageText = `Loading tool ${this.id} failed: ${error}`;
-                    this.messageShow = true;
+                    this.showTool = false;
+
+                    this.onSetMessage({
+                        topLevel: true,
+                        variant: "danger",
+                        message: `Loading tool ${this.id} failed: ${error}`,
+                    });
                 })
                 .finally(() => {
-                    this.disabled = false;
+                    this.disabledTool = false;
                     this.showLoading = false;
                 });
         },

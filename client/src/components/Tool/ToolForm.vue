@@ -1,84 +1,86 @@
 <template>
-    <ToolPanelMessenger
-        :form-config="formConfig"
-        :show-loading="showLoading"
-        :show-form="showForm"
-        :message-show="messageShow"
-        :message-text="messageText"
-        :message-variant="messageVariant"
-        :show-error-prop="showError"
-        :error-title="errorTitle"
-        :error-content="errorContent"
-        :error-message="errorMessage"
-        :disabled="disabled || showExecuting"
-        :entry-points="entryPoints"
-        :preferred-object-store-id="preferredObjectStoreId"
-        @updatePreferredObjectStoreId="onUpdatePreferredObjectStoreId"
-        @onChangeVersion="onChangeVersion">
-        <template v-slot:above-tool>
-            <div v-if="showEntryPoints">
-                <ToolEntryPoints v-for="job in entryPoints" :key="job.id" :job-id="job.id" />
-            </div>
-            <ToolRecommendation v-if="showRecommendation" :tool-id="formConfig.id" />
-        </template>
-        <template v-slot:body>
-            <div class="mt-2 mb-4">
-                <Heading h2 separator bold size="sm"> Tool Parameters </Heading>
-                <FormDisplay
-                    :id="toolId"
-                    :inputs="formConfig.inputs"
-                    :errors="formConfig.errors"
-                    :validation-scroll-to="validationScrollTo"
-                    :warnings="formConfig.warnings"
-                    @onChange="onChange"
-                    @onValidation="onValidation" />
-            </div>
+    <div>
+        <div v-if="showEntryPoints">
+            <ToolEntryPoints v-for="job in entryPoints" :key="job.id" :job-id="job.id" />
+        </div>
 
-            <div
-                v-if="emailAllowed(config, currentUser) || remapAllowed || reuseAllowed(currentUser)"
-                class="mt-2 mb-4">
-                <Heading h2 separator bold size="sm"> Additional Options </Heading>
-                <FormElement
-                    v-if="emailAllowed(config, currentUser)"
-                    id="send_email_notification"
-                    v-model="useEmail"
-                    title="Email notification"
-                    help="Send an email notification when the job completes."
-                    type="boolean" />
-                <FormElement
-                    v-if="remapAllowed"
-                    id="rerun_remap_job_id"
-                    v-model="useJobRemapping"
-                    :title="remapTitle"
-                    :help="remapHelp"
-                    type="boolean" />
-                <FormElement
-                    v-if="reuseAllowed(currentUser)"
-                    id="use_cached_job"
-                    v-model="useCachedJobs"
-                    title="Attempt to re-use jobs with identical parameters?"
-                    help="This may skip executing jobs that you have already run."
-                    type="boolean" />
-            </div>
-        </template>
-        <template v-slot:header-buttons>
-            <ButtonSpinner
-                id="execute"
-                title="Run Tool"
-                class="btn-sm"
-                :wait="showExecuting"
-                :tooltip="tooltip"
-                @onClick="onExecute(config, currentHistoryId)" />
-        </template>
-        <template v-slot:buttons>
-            <ButtonSpinner
-                title="Run Tool"
-                class="mt-3 mb-3"
-                :wait="showExecuting"
-                :tooltip="tooltip"
-                @onClick="onExecute(config, currentHistoryId)" />
-        </template>
-    </ToolPanelMessenger>
+        <ToolRecommendation v-if="showRecommendation" :tool-id="formConfig.id" />
+
+        <ToolCard
+            v-if="showForm"
+            :id="formConfig.id"
+            :version="formConfig.version"
+            :title="formConfig.name"
+            :description="formConfig.description"
+            :options="formConfig"
+            :disabled="disabled || showExecuting"
+            :allow-object-store-selection="config.object_store_allows_id_selection"
+            :preferred-object-store-id="preferredObjectStoreId"
+            @onSetError="onSetError"
+            @onChangeVersion="onChangeVersion"
+            @updatePreferredObjectStoreId="onUpdatePreferredObjectStoreId">
+            <template v-slot:body>
+                <slot name="tool-messages" />
+                <div class="mt-2 mb-4">
+                    <Heading h2 separator bold size="sm"> Tool Parameters </Heading>
+                    <FormDisplay
+                        :id="toolId"
+                        :inputs="formConfig.inputs"
+                        :errors="formConfig.errors"
+                        :validation-scroll-to="validationScrollTo"
+                        :warnings="formConfig.warnings"
+                        @onChange="onChange"
+                        @onValidation="onValidation" />
+                </div>
+
+                <div
+                    v-if="emailAllowed(config, currentUser) || remapAllowed || reuseAllowed(currentUser)"
+                    class="mt-2 mb-4">
+                    <Heading h2 separator bold size="sm"> Additional Options </Heading>
+                    <FormElement
+                        v-if="emailAllowed(config, currentUser)"
+                        id="send_email_notification"
+                        v-model="useEmail"
+                        title="Email notification"
+                        help="Send an email notification when the job completes."
+                        type="boolean" />
+                    <FormElement
+                        v-if="remapAllowed"
+                        id="rerun_remap_job_id"
+                        v-model="useJobRemapping"
+                        :title="remapTitle"
+                        :help="remapHelp"
+                        type="boolean" />
+                    <FormElement
+                        v-if="reuseAllowed(currentUser)"
+                        id="use_cached_job"
+                        v-model="useCachedJobs"
+                        title="Attempt to re-use jobs with identical parameters?"
+                        help="This may skip executing jobs that you have already run."
+                        type="boolean" />
+                </div>
+            </template>
+
+            <template v-slot:header-buttons>
+                <ButtonSpinner
+                    id="execute"
+                    title="Run Tool"
+                    class="btn-sm"
+                    :wait="showExecuting"
+                    :tooltip="tooltip"
+                    @onClick="onExecute(config, currentHistoryId)" />
+            </template>
+
+            <template v-slot:buttons>
+                <ButtonSpinner
+                    title="Run Tool"
+                    class="mt-3 mb-3"
+                    :wait="showExecuting"
+                    :tooltip="tooltip"
+                    @onClick="onExecute(config, currentHistoryId)" />
+            </template>
+        </ToolCard>
+    </div>
 </template>
 
 <script>
@@ -88,33 +90,32 @@ import Heading from "components/Common/Heading";
 import FormDisplay from "components/Form/FormDisplay";
 import FormElement from "components/Form/FormElement";
 import ToolEntryPoints from "components/ToolEntryPoints/ToolEntryPoints";
+import { useConfig } from "composables/config";
 import { mapActions, mapState } from "pinia";
 import { useHistoryItemsStore } from "stores/history/historyItemsStore";
+import { useHistoryStore } from "stores/historyStore";
 import { useJobStore } from "stores/jobStore";
+import { useUserStore } from "stores/userStore";
 import { refreshContentsWrapper } from "utils/data";
-
-import { useConfig } from "@/composables/config";
-import { useHistoryStore } from "@/stores/historyStore";
-import { useUserStore } from "@/stores/userStore";
 
 import ToolRecommendation from "../ToolRecommendation";
 import { submitJob, updateToolFormData } from "./services";
 import { allowCachedJobs } from "./utilities";
 
-import ToolPanelMessenger from "./ToolPanelMessenger.vue";
+import ToolCard from "./ToolCard.vue";
 
 export default {
     components: {
+        ToolCard,
         ToolRecommendation,
         ToolEntryPoints,
-        ToolPanelMessenger,
         ButtonSpinner,
         FormDisplay,
         FormElement,
         Heading,
     },
     props: {
-        formConfigProp: {
+        toolConfig: {
             type: Object,
             required: true,
         },
@@ -122,29 +123,13 @@ export default {
             type: String,
             required: true,
         },
-        showLoading: {
+        showTool: {
             type: Boolean,
             required: true,
         },
-        showFormProp: {
-            type: Boolean,
-            required: true,
-        },
-        disabledProp: {
+        disableTool: {
             type: Boolean,
             default: false,
-        },
-        messageShow: {
-            type: Boolean,
-            default: false,
-        },
-        messageVariant: {
-            type: String,
-            default: "",
-        },
-        messageText: {
-            type: String,
-            default: "",
         },
     },
     setup() {
@@ -153,17 +138,13 @@ export default {
     },
     data() {
         return {
-            disabled: this.disabledProp,
-            showForm: this.showFormProp,
+            showForm: this.showTool,
+            disabled: this.disableTool,
             showEntryPoints: false,
             showRecommendation: false,
-            showError: false,
             showExecuting: false,
-            formConfig: this.formConfigProp,
+            formConfig: this.toolConfig,
             formData: undefined,
-            errorTitle: null,
-            errorContent: null,
-            errorMessage: "",
             useCachedJobs: false,
             useEmail: false,
             useJobRemapping: false,
@@ -192,9 +173,6 @@ export default {
         tooltip() {
             return `Run tool: ${this.formConfig.name} (${this.formConfig.version})`;
         },
-        errorContentPretty() {
-            return JSON.stringify(this.errorContent, null, 4);
-        },
         remapTitle() {
             if (this.remapAllowed === "job_produced_collection_elements") {
                 return "Replace elements in collection?";
@@ -214,29 +192,30 @@ export default {
         },
     },
     watch: {
+        // TODO: as functions?
+        toolConfig: {
+            immediate: true,
+            handler(newToolConfig) {
+                this.formConfig = newToolConfig;
+            },
+        },
+        showTool: {
+            immediate: true,
+            handler(newShowTool) {
+                this.showForm = newShowTool;
+            },
+        },
+        disableTool: {
+            immediate: true,
+            handler(newDisableTool) {
+                this.disabled = newDisableTool;
+            },
+        },
         currentHistoryId() {
             this.onHistoryChange();
         },
         getLastUpdateTime() {
             this.onHistoryChange();
-        },
-        formConfigProp: {
-            immediate: true,
-            handler(newFormConfigProp) {
-                this.formConfig = newFormConfigProp;
-            },
-        },
-        disabledProp: {
-            immediate: true,
-            handler(newDisabledProp) {
-                this.disabled = newDisabledProp;
-            },
-        },
-        showFormProp: {
-            immediate: true,
-            handler(newShowFormProp) {
-                this.showForm = newShowFormProp;
-            },
         },
     },
     methods: {
@@ -279,6 +258,9 @@ export default {
         },
         onChangeVersion(newVersion) {
             this.$emit("onChangeVersion", newVersion);
+        },
+        onSetError(errorObj) {
+            this.$emit("onSetError", errorObj);
         },
         onExecute(config, historyId) {
             if (this.validationInternal) {
@@ -328,10 +310,13 @@ export default {
                         });
                         changeRoute = prevRoute === this.$route.fullPath;
                     } else {
-                        this.showError = true;
                         this.showForm = true;
-                        this.errorTitle = "Job submission rejected.";
-                        this.errorContent = jobResponse;
+                        this.$emit("onSetError", {
+                            dialog: true,
+                            message: "",
+                            title: "Job submission rejected.",
+                            content: jobResponse,
+                        });
                     }
                     if (changeRoute) {
                         this.$router.push(`/jobs/submission/success`);
@@ -343,7 +328,6 @@ export default {
                     }
                 },
                 (e) => {
-                    this.errorMessage = e?.response?.data?.err_msg;
                     this.showExecuting = false;
                     let genericError = true;
                     const errorData = e && e.response && e.response.data && e.response.data.err_data;
@@ -355,9 +339,12 @@ export default {
                         }
                     }
                     if (genericError) {
-                        this.showError = true;
-                        this.errorTitle = "Job submission failed.";
-                        this.errorContent = jobDef;
+                        this.$emit("onSetError", {
+                            dialog: true,
+                            message: e?.response?.data?.err_msg,
+                            title: "Job submission failed.",
+                            content: jobDef,
+                        });
                     }
                 }
             );
