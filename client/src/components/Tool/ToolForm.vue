@@ -253,13 +253,6 @@ export default {
             this.$emit("onSetError", errorObj);
         },
         onExecute(config, historyId) {
-            this.$emit("onSetError", {
-                dialog: true,
-                message: "",
-                title: "Job submission rejected.",
-                content: "jobResponse",
-            });
-            return;
             if (this.validationInternal) {
                 this.validationScrollTo = this.validationInternal.slice();
                 return;
