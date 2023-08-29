@@ -56,6 +56,7 @@ const props = defineProps({
 const emit = defineEmits(["onChangeVersion", "onSetError", "updatePreferredObjectStoreId"]);
 
 function onChangeVersion(newVersion) {
+    // this.onSetError(null);
     emit("onChangeVersion", newVersion);
 }
 

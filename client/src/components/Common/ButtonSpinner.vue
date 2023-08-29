@@ -11,6 +11,7 @@
     <b-button
         v-else
         v-b-tooltip.hover.bottom
+        :disabled="disabled"
         variant="primary"
         class="d-flex flex-nowrap align-items-center text-nowrap"
         :title="tooltip"
@@ -36,6 +37,10 @@ export default {
             required: true,
         },
         wait: {
+            type: Boolean,
+            default: false,
+        },
+        disabled: {
             type: Boolean,
             default: false,
         },
