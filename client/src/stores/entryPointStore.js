@@ -23,7 +23,7 @@ export const useEntryPointStore = defineStore("entryPointStore", {
             await this.fetchEntryPoints();
             this.pollTimeout = setTimeout(() => {
                 this.ensurePollingEntryPoints();
-            }, 10000);
+            }, 5000);
         },
         stopPollingEntryPoints() {
             this.pollTimeout = clearTimeout(this.pollTimeout);

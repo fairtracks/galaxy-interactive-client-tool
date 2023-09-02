@@ -395,7 +395,7 @@ to provide access to graphical tools in real-time.
         </xs:attribute>
         <xs:attribute name="requires_domain" type="PermissiveBoolean" default="true">
           <xs:annotation>
-            <xs:documentation xml:lang="en">Whether domain-based proxying is required for the entry point. Default is True.</xs:documentation>
+          <xs:documentation xml:lang="en">Whether domain-based proxying is required for the entry point. Default is True.</xs:documentation>
           </xs:annotation>
         </xs:attribute>
   </xs:complexType>
@@ -2831,6 +2831,21 @@ tools will not need to specify any attributes on this tag itself.]]>
     <xs:attribute name="nginx_upload" type="PermissiveBoolean" default="false">
       <xs:annotation>
         <xs:documentation xml:lang="en">This boolean indicates if this is an upload tool or not.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="ict_server_tool_id" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Tool id of interactive tool for interactive client tool to connect to.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="ict_server_tool_version" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Version of interactive tool for interactive client tool to connect to.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="ict_server_entrypoint_label" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Label of interactive tool entry point fo interactive client tool to connect to.</xs:documentation>
       </xs:annotation>
     </xs:attribute>
   </xs:complexType>

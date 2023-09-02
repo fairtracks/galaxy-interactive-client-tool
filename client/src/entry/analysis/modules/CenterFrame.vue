@@ -6,9 +6,11 @@
         class="center-frame"
         frameborder="0"
         title="galaxy frame"
-        width="100%"
-        height="100%"
-        @load="onLoad" />
+        :width="width"
+        :height="height"
+        sandbox="allow-scripts allow-same-origin allow-forms"
+        @load="onLoad"
+        @error="onError" />
 </template>
 <script>
 import { withPrefix } from "utils/redirect";
@@ -22,6 +24,14 @@ export default {
         src: {
             type: String,
             default: "",
+        },
+        width: {
+            type: String,
+            default: "100%",
+        },
+        height: {
+            type: String,
+            default: "100%",
         },
     },
     computed: {
@@ -40,6 +50,9 @@ export default {
             } catch (err) {
                 console.warn("CenterFrame - onLoad location access forbidden.", ev, location);
             }
+        },
+        onError(ev) {
+            this.$emit("error");
         },
     },
 };

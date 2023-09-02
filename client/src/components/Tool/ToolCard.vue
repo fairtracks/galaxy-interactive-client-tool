@@ -56,6 +56,7 @@ const props = defineProps({
 const emit = defineEmits(["onChangeVersion", "onSetError", "updatePreferredObjectStoreId"]);
 
 function onChangeVersion(newVersion) {
+    // this.onSetError(null);
     emit("onChangeVersion", newVersion);
 }
 
@@ -107,7 +108,11 @@ function onUpdatePreferredObjectStoreId(selectedToolPreferredObjectStoreId) {
                         <ToolOptionsButton
                             :id="props.id"
                             :sharable-url="props.options.sharable_url"
-                            :options="props.options" />
+                            :options="props.options">
+                            <template v-slot:extra-tool-options-items>
+                                <slot name="extra-tool-options-items" />
+                            </template>
+                        </ToolOptionsButton>
                         <b-button
                             v-if="allowObjectStoreSelection"
                             id="tool-storage"

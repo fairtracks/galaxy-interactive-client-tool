@@ -342,6 +342,8 @@ class FastAPIUsers:
 
         return payload
 
+    # https://github.com/tiangolo/fastapi/issues/791
+    # "/api/users/{user_id}/favorites/{object_type}/{object_id:path}",
     @router.delete(
         "/api/users/{user_id}/favorites/{object_type}/{object_id}",
         name="remove_favorite",
