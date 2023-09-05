@@ -21,7 +21,6 @@
 
         <ToolTypeChooser
             :tool-config="toolConfig"
-            :current-version="currentVersion"
             :show-tool="showTool"
             :disable-tool="disableTool"
             @onChangeVersion="onChangeVersion"
@@ -78,7 +77,6 @@ export default {
             toolConfig: {},
             messageObj: this.getDefaultMessageObj(),
             errorObj: this.getDefaultErrorObj(),
-            currentVersion: this.version,
         };
     },
     computed: {
@@ -99,7 +97,7 @@ export default {
         },
     },
     created() {
-        this.requestTool();
+        this.requestTool(this.version);
     },
     methods: {
         getDefaultMessageObj() {
@@ -134,17 +132,16 @@ export default {
             }
             this.showErrorDialog = this.errorObj.dialog;
         },
-        requestTool(newVersion) {
-            this.currentVersion = newVersion || this.currentVersion;
+        requestTool(version) {
             this.disableTool = true;
             console.debug("ToolForm - Requesting tool.", this.id);
 
-            return getToolFormData(this.id, this.currentVersion, this.job_id, this.history_id)
+            return getToolFormData(this.id, version, this.job_id, this.history_id)
                 .then((data) => {
                     this.toolConfig = data;
                     this.showTool = true;
 
-                    if (newVersion) {
+                    if (version) {
                         this.onSetMessage({
                             topLevel: false,
                             variant: "success",

@@ -43,7 +43,7 @@ export default {
         },
         currentVersion: {
             type: String,
-            required: true,
+            default: null,
         },
         showTool: {
             type: Boolean,

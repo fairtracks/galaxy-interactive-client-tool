@@ -119,10 +119,6 @@ export default {
             type: Object,
             required: true,
         },
-        currentVersion: {
-            type: String,
-            required: true,
-        },
         showTool: {
             type: Boolean,
             required: true,
@@ -235,7 +231,7 @@ export default {
         onUpdate() {
             this.disabled = true;
             console.debug("ToolForm - Updating input parameters.", this.formData);
-            updateToolFormData(this.formConfig.id, this.currentVersion, this.history_id, this.formData)
+            updateToolFormData(this.formConfig.id, this.formConfig.version, this.history_id, this.formData)
                 .then((data) => {
                     this.formConfig = data;
                 })

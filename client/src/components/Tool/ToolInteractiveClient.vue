@@ -24,14 +24,14 @@
                 <CenterFrame
                     id="interactive_client_frame"
                     :height="iframeLoaded ? iframeHeight : '0px'"
-                    :src="serviceStarting ? '' : entryPointTarget"
+                    :src="serviceStarting ? '' : iframeSrc"
                     @load="onLoadIframe()" />
                 <FontAwesomeIcon v-if="iframeLoading" icon="spinner" class="ml-3 mr-2" spin />
             </template>
 
             <template v-slot:header-buttons>
                 <ButtonSpinner
-                    v-if="!entryPointTarget || serviceStarting"
+                    v-if="!serviceToolEntryPoint || serviceStarting"
                     id="start-service-button"
                     :title="serviceStarting ? 'Starting Service...' : 'Start Service'"
                     class="btn-sm"
@@ -41,7 +41,7 @@
                     @onClick="startService()" />
 
                 <ButtonSpinner
-                    v-if="entryPointTarget && !serviceStarting"
+                    v-if="serviceToolEntryPoint && !serviceStarting"
                     id="stop-service-button"
                     :title="serviceStopping ? 'Stopping Service...' : 'Stop Service'"
                     class="btn-sm"
@@ -86,10 +86,6 @@ export default {
             type: Object,
             required: true,
         },
-        currentVersion: {
-            type: String,
-            required: true,
-        },
         showTool: {
             type: Boolean,
             required: true,
@@ -108,10 +104,11 @@ export default {
             preferredObjectStoreId: null, // Placeholder - support added later, if needed
             clientToolConfigInspected: false,
             clientToolConfigValid: false,
-            entryPoint: null,
+            serviceToolEntryPoint: null,
             allServiceToolEntryPoints: [],
-            triedToFetchServiceTool: false,
-            serviceToolConfig: null,
+            triedToFindServiceToolEntryPoint: false,
+            triedToFetchServiceToolInfo: false,
+            serviceToolInfo: null,
             serviceStarting: false,
             serviceStopping: false,
             iframeLoaded: false,
@@ -134,38 +131,58 @@ export default {
             return this.toolConfig.ict_server_entrypoint_label;
         },
         serviceToolExists() {
-            return true;
-            console.log(`serviceToolsExists: ${this.triedToFetchServiceTool && this.serviceToolConfig !== null}`);
-            return this.triedToFetchServiceTool && this.serviceToolConfig !== null;
+            console.log(`serviceToolExists: ${this.triedToFetchServiceToolInfo && this.serviceToolInfo !== null}`);
+            return this.triedToFetchServiceToolInfo && this.serviceToolInfo !== null;
         },
-        entryPointTarget() {
-            if (this.entryPoint && this.entryPoint.target) {
-                const params = new URLSearchParams(this.toolConfig.state_inputs);
-                const url = `${this.entryPoint.target}?${params.toString()}`;
-                console.log(url);
-                return url;
+        entryPointPollingTimeout() {
+            return this.serviceStarting && !this.iframeLoading && !this.serviceStopping ? 1000 : 2500;
+        },
+        httpPost() {
+            return false;
+        },
+        iframeSrc() {
+            if (this.serviceToolEntryPoint && this.serviceToolEntryPoint.target) {
+                if (this.httpPost) {
+                    return this.serviceToolEntryPoint.target;
+                } else {
+                    console.log(this.clientToolParams);
+                    const getParams = new URLSearchParams(this.clientToolParams).toString();
+                    return `${this.serviceToolEntryPoint.target}?${getParams}`;
+                }
             } else {
-                console.log(null);
                 return null;
             }
         },
+        // iframeSrcWhilePageLoading() {
+        //     console.log("iframeSrcWhilePageLoading");
+        //     this.waitForPageLoad().then(() => {
+        //         console.log("done");
+        //     });
+        //     console.log("return");
+        //     return "";
+        // },
+        clientToolParams() {
+            const params = { ...this.toolConfig.state_inputs }; // copy
+            params.interactive_client_tool_id = this.toolConfig.id;
+            params.interactive_client_tool_version = this.toolConfig.version;
+            return params;
+        },
         iframeLoading() {
-            return this.entryPointTarget && !this.iframeLoaded;
+            return this.iframeSrc && !this.iframeLoaded;
         },
         iframeHeight() {
             this.refreshIframeHeightFlip;
 
             if (this.iframeLoaded) {
-                const iframeObj = this.getIframeObj();
-                if (iframeObj) {
-                    const win = iframeObj.contentWindow;
-                    const html = win.document.documentElement;
+                const iframeWindow = this.getIframeWindow();
+                if (iframeWindow) {
+                    const html = iframeWindow.document.documentElement;
 
                     // Idea from https://stackoverflow.com/a/64110252
                     if (html) {
                         html.style.overflowX = "auto";
                         html.style.overflowY = "hidden";
-                        const htmlStyle = win.getComputedStyle(html);
+                        const htmlStyle = iframeWindow.getComputedStyle(html);
                         const htmlHeight = parseInt(htmlStyle.getPropertyValue("height"));
 
                         return `${htmlHeight}px`;
@@ -185,19 +202,38 @@ export default {
             if (!this.clientToolConfigInspected) {
                 this.inspectClientToolConfig();
             } else {
-                await this.fetchEntryPoint();
+                const prevActiveEntryPoints = this.activeEntryPoints;
+                await this.fetchEntryPointsAndRegisterPollingTimeout();
+
+                if (this.activeEntryPoints === prevActiveEntryPoints) {
+                    // activeEntryPoints watcher will not trigger
+                    await this.findServiceToolEntryPoint();
+                }
             }
+        },
+        async entryPointPollingTimeout() {
+            console.log("entryPointPollingTimeout");
+            await this.fetchEntryPointsAndRegisterPollingTimeout();
         },
         async activeEntryPoints() {
-            console.log("activeEntryPoints");
-            await this.fetchEntryPoint();
+            console.log(`activeEntryPoints at ${new Date().toLocaleString()}`);
+            await this.findServiceToolEntryPoint();
         },
-        async entryPointTarget() {
-            console.log("entryPointTarget");
-            if (this.entryPointTarget && this.serviceStarting) {
+        async triedToFindServiceToolEntryPoint() {
+            console.log("triedToFindServiceToolEntryPoint");
+            if (this.triedToFindServiceToolEntryPoint) {
+                await this.setServiceToolErrorsIfNeeded();
+            }
+        },
+        async iframeLoading() {
+            console.log("iframeLoading");
+            if (this.iframeLoading) {
                 await this.waitForPageLoad();
             }
-            if (!this.entryPointTarget) {
+        },
+        async iframeSrc() {
+            console.log("iframeSrc");
+            if (!this.iframeSrc) {
                 this.iframeLoaded = false;
             }
         },
@@ -206,8 +242,12 @@ export default {
         console.log("created");
         this.root = getAppRoot();
         this.interactiveToolsServices = new Services({ root: this.root });
-        await this.ensurePollingEntryPoints();
         this.load();
+    },
+    async beforeDestroy() {
+        console.log("beforeDestroy");
+        await this.ensurePollingEntryPoints();
+        this.removeIframeEventListeners();
     },
     methods: {
         ...mapActions(useEntryPointStore, ["ensurePollingEntryPoints", "fetchEntryPoints"]),
@@ -221,10 +261,11 @@ export default {
         resetData() {
             this.clientToolConfigInspected = false;
             this.clientToolConfigValid = false;
-            this.entryPoint = null;
+            this.serviceToolEntryPoint = null;
             this.allServiceToolEntryPoints = [];
-            this.triedToFetchServiceTool = false;
-            this.serviceToolConfig = null;
+            this.triedToFindServiceToolEntryPoint = false;
+            this.triedToFetchServiceToolInfo = false;
+            this.serviceToolInfo = null;
             this.iframeLoaded = false;
             this.serviceStarting = false;
         },
@@ -238,7 +279,7 @@ export default {
             this.preferredObjectStoreId = preferredObjectStoreId;
         },
         inspectClientToolConfig() {
-            console.log("inspecting client tool config...");
+            console.log("inspectClientToolConfig");
             const validate_properties = [
                 { value: this.serviceToolId, attr: "ict_server_tool_id", desc: "Tool id" },
                 { value: this.serviceToolVersion, attr: "ict_server_tool_version", desc: "Tool version" },
@@ -249,81 +290,127 @@ export default {
                 },
             ];
 
+            let valid = true;
             for (const prop of validate_properties) {
                 if (!prop.value) {
                     this.onSetError({
-                        message: `Error: ${prop.desc} for required interactive server tool has not been set for interactive
+                        message: `Error: ${prop.desc} for required interactive tool service has not been set for interactive
                                   client tool "${this.toolConfig.id}". Please set the "${prop.desc}" attribute of the
                                   "inputs" tab accordingly.`,
                     });
 
-                    this.clientToolConfigValid = false;
-                    this.clientToolConfigInspected = true;
-                    return;
+                    valid = false;
+                    break;
                 }
             }
-            console.log("finished validation");
-            this.clientToolConfigValid = true;
+            this.clientToolConfigValid = valid;
             this.clientToolConfigInspected = true;
         },
-        async fetchEntryPoint() {
+        async fetchEntryPointsAndRegisterPollingTimeout() {
+            await this.ensurePollingEntryPoints(this.entryPointPollingTimeout);
+        },
+        async findServiceToolEntryPoint() {
             if (this.clientToolConfigValid) {
+                console.log("finding correct entry point");
                 const jobStore = useJobStore();
-                const serviceToolEntryPoints = [];
+                const allServiceToolEntryPoints = {};
 
                 for (const entryPoint of this.activeEntryPoints) {
-                    await jobStore.fetchJob(entryPoint.job_id);
-                    const creatingJob = jobStore.getJob(entryPoint.job_id);
+                    let creatingJob = jobStore.getJob(entryPoint.job_id);
 
-                    if (
-                        creatingJob.tool_id === this.serviceToolId &&
-                        creatingJob.tool_version === this.serviceToolVersion
-                    ) {
-                        serviceToolEntryPoints.push(entryPoint);
+                    if (!creatingJob) {
+                        console.log(`fetching job: ${entryPoint.job_id}`);
+                        await jobStore.fetchJob(entryPoint.job_id);
+                        creatingJob = jobStore.getJob(entryPoint.job_id);
+                    }
+
+                    if (creatingJob.tool_id === this.serviceToolId) {
+                        if (!(creatingJob.tool_version in allServiceToolEntryPoints)) {
+                            allServiceToolEntryPoints[creatingJob.tool_version] = [];
+                        }
+                        allServiceToolEntryPoints[creatingJob.tool_version].push(entryPoint);
                     }
                 }
 
-                for (const entryPoint of serviceToolEntryPoints) {
-                    if (entryPoint.label === this.serviceToolEntryPointLabel) {
-                        this.onSetError(null);
-                        this.entryPoint = entryPoint;
-                        this.allServiceToolEntryPoints = serviceToolEntryPoints;
-                        return;
+                let version = this.serviceToolVersion;
+                if (!(version in allServiceToolEntryPoints)) {
+                    await this.fetchServiceToolInfo();
+                    if (this.serviceToolExists) {
+                        version = this.serviceToolInfo.version;
                     }
                 }
-                this.entryPoint = null;
-                await this.setNotRunningError();
+
+                let serviceToolEntryPoint = null;
+                if (version in allServiceToolEntryPoints) {
+                    for (const entryPoint of allServiceToolEntryPoints[version]) {
+                        if (entryPoint.label === this.serviceToolEntryPointLabel) {
+                            this.onSetError(null);
+                            serviceToolEntryPoint = entryPoint;
+                            this.allServiceToolEntryPoints = allServiceToolEntryPoints[version];
+                            break;
+                        }
+                    }
+                }
+                this.serviceToolEntryPoint = serviceToolEntryPoint;
+                this.triedToFindServiceToolEntryPoint = true;
+                console.log("finished finding correct entry point");
             }
         },
-        async setNotRunningError() {
-            await this.fetchServiceToolConfig();
+        async setServiceToolErrorsIfNeeded() {
+            await this.fetchServiceToolInfo();
             if (this.serviceToolExists) {
-                this.onSetError({
-                    message: `Required interactive server tool "${this.serviceToolId}" with version
-                              "${this.serviceToolVersion}" not running. Click the "Start Service" button
-                              at the right end of the tool header to start.`,
-                });
-            }
-        },
-        async fetchServiceToolConfig() {
-            if (!this.triedToFetchServiceTool) {
-                try {
-                    this.serviceToolConfig = await getToolFormData(this.serviceToolId, this.serviceToolVersion);
-                } catch (error) {
+                const reqVersion = this.serviceToolVersion;
+                const foundVersion = this.serviceToolInfo.version;
+                const isWrongVersion = reqVersion !== foundVersion;
+                const startOfMessage = `
+                    Required interactive tool service "${this.serviceToolId}" with version "${reqVersion}"
+                    ${isWrongVersion ? `is not installed, however version "${foundVersion}" of the tool` : ""}
+                    is available`;
+
+                if (!this.serviceToolEntryPoint) {
+                    console.log("setNotRunningError");
                     this.onSetError({
-                        message: `Loading interactive client tool "${this.toolConfig.id}" failed due to an error loading
-                              required interactive server tool "${this.serviceToolId}" with version
-                              "${this.serviceToolVersion}": ${error}`,
+                        message: `${startOfMessage} but not running. Click the "Start Service" button in the tool
+                                  header to start the service with default input values. Alternatively, to edit the
+                                  tool form before starting the service, select "Open Service tool" from the popup
+                                  menu (downwards triangle).`,
+                    });
+                } else if (isWrongVersion) {
+                    console.log(`setWrongVersionError ${foundVersion}`);
+                    this.onSetError({
+                        message: `${startOfMessage}. Connecting to version "${foundVersion}" of the service instead.
+                                  This may cause errors or other unintended consequences. Please proceed at your own
+                                  risk!`,
                     });
                 }
             }
-            this.triedToFetchServiceTool = true;
+        },
+        async fetchServiceToolInfo() {
+            console.log(`fetchServiceToolInfo ${this.triedToFetchServiceToolInfo}`);
+            if (!this.triedToFetchServiceToolInfo) {
+                try {
+                    console.time();
+                    const response = await axios.get(
+                        getAppRoot() + `api/tools/${this.serviceToolId}?tool_version=${this.serviceToolVersion}`
+                    );
+                    console.assert(response.data.version === this.serviceToolVersion);
+                    this.serviceToolInfo = response.data;
+                    console.timeEnd();
+                } catch (error) {
+                    this.onSetError({
+                        message: `Loading interactive client tool "${this.toolConfig.id}" failed due to an error
+                                  loading required interactive tool service "${this.serviceToolId}" with version
+                                  "${this.serviceToolVersion}": ${error?.response?.data?.err_msg}`,
+                    });
+                }
+            }
+            this.triedToFetchServiceToolInfo = true;
         },
         async waitForPageLoad() {
             while (this.serviceStarting) {
                 try {
                     console.log("trying to load page...");
-                    await axios.get(withPrefix(this.entryPointTarget));
+                    await axios.get(withPrefix(this.iframeSrc));
                     this.serviceStarting = false;
                 } catch (error) {
                     console.log(error);
@@ -370,36 +457,40 @@ export default {
             for (const entryPoint of this.allServiceToolEntryPoints) {
                 await this.interactiveToolsServices.stopInteractiveTool(entryPoint.id);
             }
-            this.entryPoint = null;
+            this.serviceToolEntryPoint = null;
             this.allServiceToolEntryPoints = [];
-
-            await this.fetchEntryPoints();
-            await this.ensurePollingEntryPoints();
 
             this.serviceStopping = false;
         },
-        getIframeObj() {
-            return window.top.document.getElementById("interactive_client_frame");
+        getIframeWindow() {
+            return window.top.document.getElementById("interactive_client_frame")?.contentWindow;
         },
-        // reloadIframe() {
-        //     this.getIframeObj().src += "";
-        // },
         onLoadIframe() {
             console.log("onLoadIframe");
-            this.registerIframeEventHandlers();
+            this.addIframeEventListeners();
             this.iframeLoaded = true;
             this.refreshIframeHeight();
-            this.fetchServiceToolConfig().then(() => {});
         },
-        registerIframeEventHandlers() {
-            const iframeObj = this.getIframeObj();
-            if (iframeObj) {
-                const win = iframeObj.contentWindow;
-
-                win.addEventListener("resize", this.refreshIframeHeight);
-                win.addEventListener("mousedown", this.shortSleepAndRefreshIframeHeight);
-                win.addEventListener("mouseup", this.shortSleepAndRefreshIframeHeight);
-                win.addEventListener("keydown", this.shortSleepAndRefreshIframeHeight);
+        addIframeEventListeners() {
+            console.log("addIframeEventListeners");
+            const iframeWindow = this.getIframeWindow();
+            if (iframeWindow) {
+                iframeWindow.addEventListener("resize", this.refreshIframeHeight);
+                iframeWindow.addEventListener("mousedown", this.shortSleepAndRefreshIframeHeight);
+                iframeWindow.addEventListener("mouseup", this.shortSleepAndRefreshIframeHeight);
+                iframeWindow.addEventListener("keydown", this.shortSleepAndRefreshIframeHeight);
+                iframeWindow.addEventListener("beforeunload", this.removeIframeEventListeners);
+            }
+        },
+        removeIframeEventListeners() {
+            console.log("removeIframeEventListeners");
+            const iframeWindow = this.getIframeWindow();
+            if (iframeWindow) {
+                iframeWindow.removeEventListener("resize", this.refreshIframeHeight);
+                iframeWindow.removeEventListener("mousedown", this.shortSleepAndRefreshIframeHeight);
+                iframeWindow.removeEventListener("mouseup", this.shortSleepAndRefreshIframeHeight);
+                iframeWindow.removeEventListener("keydown", this.shortSleepAndRefreshIframeHeight);
+                iframeWindow.removeEventListener("beforeunload", this.removeIframeEventListeners);
             }
         },
         async refreshIframeHeight(event) {
