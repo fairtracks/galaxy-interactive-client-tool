@@ -14,7 +14,7 @@
                 The server could not complete this request. Please verify your parameter settings, retry submission and
                 contact the Galaxy Team if this error persists. A transcript of the submitted data is shown below.
             </b-alert>
-            <small class="text-muted">
+            <small v-if="errorObj.content" class="text-muted">
                 <pre>{{ errorContentPretty }}</pre>
             </small>
         </b-modal>
