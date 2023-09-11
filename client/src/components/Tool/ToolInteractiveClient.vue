@@ -68,7 +68,7 @@ import { useJobStore } from "stores/jobStore";
 import { refreshContentsWrapper } from "utils/data";
 import { withPrefix } from "utils/redirect";
 
-import { getToolFormData, submitJob } from "./services";
+import { submitJob } from "./services";
 
 import ToolCard from "./ToolCard.vue";
 import ButtonSpinner from "components/Common/ButtonSpinner.vue";
@@ -106,12 +106,12 @@ export default {
             clientToolConfigValid: false,
             serviceToolEntryPoint: null,
             allServiceToolEntryPoints: [],
-            triedToFindServiceToolEntryPoint: false,
             triedToFetchServiceToolInfo: false,
             serviceToolInfo: null,
             serviceStarting: false,
             serviceStopping: false,
             iframeLoaded: false,
+            iframeSrc: null,
             refreshIframeHeightFlip: false,
         };
     },
@@ -138,37 +138,23 @@ export default {
             return this.serviceStarting && !this.iframeLoading && !this.serviceStopping ? 1000 : 2500;
         },
         httpPost() {
-            return false;
+            return true;
         },
-        iframeSrc() {
-            if (this.serviceToolEntryPoint && this.serviceToolEntryPoint.target) {
-                if (this.httpPost) {
-                    return this.serviceToolEntryPoint.target;
-                } else {
-                    console.log(this.clientToolParams);
-                    const getParams = new URLSearchParams(this.clientToolParams).toString();
-                    return `${this.serviceToolEntryPoint.target}?${getParams}`;
-                }
-            } else {
-                return null;
-            }
+        serviceToolEntryPointTarget() {
+            return this.serviceToolEntryPoint?.target;
         },
-        // iframeSrcWhilePageLoading() {
-        //     console.log("iframeSrcWhilePageLoading");
-        //     this.waitForPageLoad().then(() => {
-        //         console.log("done");
-        //     });
-        //     console.log("return");
-        //     return "";
-        // },
         clientToolParams() {
             const params = { ...this.toolConfig.state_inputs }; // copy
+            if (this.httpPost && this.serviceToolEntryPointTarget) {
+                const target_url = new URL(this.serviceToolEntryPointTarget, window.location.origin);
+                params.entrypoint_target_url = target_url.href;
+            }
             params.interactive_client_tool_id = this.toolConfig.id;
             params.interactive_client_tool_version = this.toolConfig.version;
             return params;
         },
         iframeLoading() {
-            return this.iframeSrc && !this.iframeLoaded;
+            return this.serviceToolEntryPointTarget && !this.iframeLoaded;
         },
         iframeHeight() {
             this.refreshIframeHeightFlip;
@@ -219,22 +205,21 @@ export default {
             console.log(`activeEntryPoints at ${new Date().toLocaleString()}`);
             await this.findServiceToolEntryPoint();
         },
-        async triedToFindServiceToolEntryPoint() {
-            console.log("triedToFindServiceToolEntryPoint");
-            if (this.triedToFindServiceToolEntryPoint) {
-                await this.setServiceToolErrorsIfNeeded();
-            }
+        async serviceToolEntryPoint() {
+            console.log("serviceToolEntryPoint");
+            await this.setServiceToolErrorsIfNeeded();
         },
-        async iframeLoading() {
-            console.log("iframeLoading");
-            if (this.iframeLoading) {
-                await this.waitForPageLoad();
-            }
-        },
-        async iframeSrc() {
-            console.log("iframeSrc");
-            if (!this.iframeSrc) {
-                this.iframeLoaded = false;
+        async serviceToolEntryPointTarget() {
+            console.log("serviceToolEntryPointTarget");
+            if (this.serviceToolEntryPointTarget) {
+                if (this.serviceStarting) {
+                    this.iframeSrc = await this.getIframeSrc({ waitForPageLoad: true });
+                    this.serviceStarting = false;
+                } else {
+                    this.iframeSrc = await this.getIframeSrc({ waitForPageLoad: false });
+                }
+            } else {
+                this.iframeSrc = null;
             }
         },
     },
@@ -250,7 +235,7 @@ export default {
         this.removeIframeEventListeners();
     },
     methods: {
-        ...mapActions(useEntryPointStore, ["ensurePollingEntryPoints", "fetchEntryPoints"]),
+        ...mapActions(useEntryPointStore, ["ensurePollingEntryPoints"]),
 
         load() {
             this.resetData();
@@ -263,7 +248,6 @@ export default {
             this.clientToolConfigValid = false;
             this.serviceToolEntryPoint = null;
             this.allServiceToolEntryPoints = [];
-            this.triedToFindServiceToolEntryPoint = false;
             this.triedToFetchServiceToolInfo = false;
             this.serviceToolInfo = null;
             this.iframeLoaded = false;
@@ -307,6 +291,7 @@ export default {
             this.clientToolConfigInspected = true;
         },
         async fetchEntryPointsAndRegisterPollingTimeout() {
+            console.log("fetchEntryPointsAndRegisterPollingTimeout");
             await this.ensurePollingEntryPoints(this.entryPointPollingTimeout);
         },
         async findServiceToolEntryPoint() {
@@ -352,7 +337,7 @@ export default {
                     }
                 }
                 this.serviceToolEntryPoint = serviceToolEntryPoint;
-                this.triedToFindServiceToolEntryPoint = true;
+                await this.setServiceToolErrorsIfNeeded();
                 console.log("finished finding correct entry point");
             }
         },
@@ -406,17 +391,37 @@ export default {
             }
             this.triedToFetchServiceToolInfo = true;
         },
-        async waitForPageLoad() {
-            while (this.serviceStarting) {
+        async getIframeSrc({ waitForPageLoad }) {
+            console.log(`getIframeSrc(waitForPageLoad=${waitForPageLoad}`);
+            let ok = false;
+            let iframeSrc = null;
+            while (!ok) {
                 try {
-                    console.log("trying to load page...");
-                    await axios.get(withPrefix(this.iframeSrc));
-                    this.serviceStarting = false;
+                    if (this.httpPost) {
+                        const { data } = await axios.post(this.serviceToolEntryPointTarget, this.clientToolParams);
+                        const blob = new Blob([data], { type: "text/html" });
+                        iframeSrc = URL.createObjectURL(blob);
+                    } else {
+                        const getParams = new URLSearchParams(this.clientToolParams).toString();
+                        iframeSrc = `${this.serviceToolEntryPointTarget}?${getParams}`;
+                        if (waitForPageLoad) {
+                            await axios.get(withPrefix(iframeSrc));
+                        }
+                    }
+                    ok = true;
                 } catch (error) {
                     console.log(error);
-                    await new Promise((resolve) => setTimeout(resolve, 500));
+                    if (!waitForPageLoad) {
+                        this.onSetError({
+                            message: error.message,
+                            title: "Error sending HTTP request to service tool.",
+                        });
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                    this.onSetError(null);
                 }
             }
+            return iframeSrc;
         },
         openServiceTool() {
             this.$router.push(`/root?tool_id=${this.serviceToolId}&tool_version=${this.serviceToolVersion}`);
@@ -462,13 +467,20 @@ export default {
 
             this.serviceStopping = false;
         },
+        getIframeElement() {
+            return window.top.document.getElementById("interactive_client_frame");
+        },
         getIframeWindow() {
-            return window.top.document.getElementById("interactive_client_frame")?.contentWindow;
+            return this.getIframeElement()?.contentWindow;
         },
         onLoadIframe() {
             console.log("onLoadIframe");
-            this.addIframeEventListeners();
-            this.iframeLoaded = true;
+            if (this.iframeSrc) {
+                this.addIframeEventListeners();
+                this.iframeLoaded = true;
+            } else {
+                this.iframeLoaded = false;
+            }
             this.refreshIframeHeight();
         },
         addIframeEventListeners() {
