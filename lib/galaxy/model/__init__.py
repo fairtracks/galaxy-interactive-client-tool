@@ -19,6 +19,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
+from secrets import token_hex
 from string import Template
 from typing import (
     Any,
@@ -150,6 +151,7 @@ from galaxy.util import (
     ready_name_for_url,
     unicodify,
     unique_id,
+    hex_to_lowercase_alphanum,
 )
 from galaxy.util.dictifiable import (
     dict_for,
@@ -2705,7 +2707,6 @@ class InteractiveToolEntryPoint(Base, Dictifiable, RepresentById):
         requires_path_in_url=False,
         configured=False,
         deleted=False,
-        short_token=False,
         **kwd,
     ):
         super().__init__(**kwd)
@@ -2713,10 +2714,7 @@ class InteractiveToolEntryPoint(Base, Dictifiable, RepresentById):
         self.requires_path_in_url = requires_path_in_url
         self.configured = configured
         self.deleted = deleted
-        if short_token:
-            self.token = (self.token or uuid4().hex)[:10]
-        else:
-            self.token = self.token or uuid4().hex
+        self.token = self.token or hex_to_lowercase_alphanum(token_hex(8))
         self.info = self.info or {}
 
     @property
@@ -2725,6 +2723,10 @@ class InteractiveToolEntryPoint(Base, Dictifiable, RepresentById):
             # FIXME: don't included queued?
             return not self.job.finished
         return False
+
+    @property
+    def class_id(self):
+        return "ep"
 
     @property
     def output_datasets_ids(self):
