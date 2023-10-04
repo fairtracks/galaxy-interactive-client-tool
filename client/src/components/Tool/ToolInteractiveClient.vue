@@ -119,16 +119,16 @@ export default {
         ...mapState(useEntryPointStore, { activeEntryPoints: "entryPoints" }),
 
         serviceToolId() {
-            console.log(this.toolConfig.ict_server_tool_id);
-            return this.toolConfig.ict_server_tool_id;
+            console.log(this.toolConfig.interactive_service_tool_id);
+            return this.toolConfig.interactive_service_tool_id;
         },
         serviceToolVersion() {
-            console.log(this.toolConfig.ict_server_tool_version);
-            return this.toolConfig.ict_server_tool_version;
+            console.log(this.toolConfig.interactive_service_tool_version);
+            return this.toolConfig.interactive_service_tool_version;
         },
         serviceToolEntryPointLabel() {
-            console.log(this.toolConfig.ict_server_entrypoint_label);
-            return this.toolConfig.ict_server_entrypoint_label;
+            console.log(this.toolConfig.interactive_service_entrypoint_label);
+            return this.toolConfig.interactive_service_entrypoint_label;
         },
         serviceToolExists() {
             console.log(`serviceToolExists: ${this.triedToFetchServiceToolInfo && this.serviceToolInfo !== null}`);
@@ -265,11 +265,11 @@ export default {
         inspectClientToolConfig() {
             console.log("inspectClientToolConfig");
             const validate_properties = [
-                { value: this.serviceToolId, attr: "ict_server_tool_id", desc: "Tool id" },
-                { value: this.serviceToolVersion, attr: "ict_server_tool_version", desc: "Tool version" },
+                { value: this.serviceToolId, attr: "interactive_service_tool_id", desc: "Tool id" },
+                { value: this.serviceToolVersion, attr: "interactive_service_tool_version", desc: "Tool version" },
                 {
                     value: this.serviceToolEntryPointLabel,
-                    attr: "ict_server_entrypoint_label",
+                    attr: "interactive_service_entrypoint_label",
                     desc: "Entry point label",
                 },
             ];
