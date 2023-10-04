@@ -220,6 +220,7 @@ export default {
                 }
             } else {
                 this.iframeSrc = null;
+                this.serviceStarting = false;
             }
         },
     },
@@ -279,7 +280,7 @@ export default {
                 if (!prop.value) {
                     this.onSetError({
                         message: `Error: ${prop.desc} for required interactive tool service has not been set for interactive
-                                  client tool "${this.toolConfig.id}". Please set the "${prop.desc}" attribute of the
+                                  client tool "${this.toolConfig.id}". Please set the "${prop.attr}" attribute of the
                                   "inputs" tab accordingly.`,
                     });
 
@@ -342,6 +343,7 @@ export default {
             }
         },
         async setServiceToolErrorsIfNeeded() {
+            console.log("setServiceToolErrorsIfNeeded");
             await this.fetchServiceToolInfo();
             if (this.serviceToolExists) {
                 const reqVersion = this.serviceToolVersion;
@@ -392,10 +394,10 @@ export default {
             this.triedToFetchServiceToolInfo = true;
         },
         async getIframeSrc({ waitForPageLoad }) {
-            console.log(`getIframeSrc(waitForPageLoad=${waitForPageLoad}`);
+            console.log(`getIframeSrc(waitForPageLoad=${waitForPageLoad})`);
             let ok = false;
             let iframeSrc = null;
-            while (!ok) {
+            while (!ok && this.serviceToolEntryPointTarget) {
                 try {
                     if (this.httpPost) {
                         const { data } = await axios.post(this.serviceToolEntryPointTarget, this.clientToolParams);
@@ -418,7 +420,6 @@ export default {
                         });
                     }
                     await new Promise((resolve) => setTimeout(resolve, 1000));
-                    this.onSetError(null);
                 }
             }
             return iframeSrc;
@@ -444,18 +445,61 @@ export default {
                         message: "",
                         title: "Job submission rejected.",
                         content: jobResponse,
+                        callbackAfterDialog: this.finalizeServiceStopped,
                     });
-                    this.serviceStarting = false;
+                } else {
+                    await this.regularlyCheckServiceJobStateUntilRunning(jobDef, jobResponse.jobs[0].id);
                 }
             } catch (error) {
+                this.serviceToolEntryPoint = null;
                 this.onSetError({
                     dialog: true,
                     message: error,
                     title: "Job submission failed.",
                     content: jobDef,
+                    callbackAfterDialog: this.finalizeServiceStopped,
                 });
-                this.serviceStarting = false;
             }
+        },
+        async regularlyCheckServiceJobStateUntilRunning(jobDef, jobId) {
+            let serviceJobId = jobId;
+            let timeout = 500;
+            console.log("regularlyCheckServiceJobStateUntilRunning");
+            try {
+                while (serviceJobId && !this.serviceToolEntryPoint) {
+                    await new Promise((resolve) => setTimeout(resolve, timeout));
+                    const { data } = await axios.get(getAppRoot() + `api/jobs/${serviceJobId}`);
+                    if (data.state == "error" || data.state == "ok") {
+                        serviceJobId = null;
+                        let message = "";
+                        if (data.traceback) {
+                            const tracebackLines = data.traceback.trim().split(/\r?\n/);
+                            message = tracebackLines[tracebackLines.length - 1];
+                        }
+                        this.onSetError({
+                            dialog: true,
+                            message: message,
+                            title:
+                                data.state == "error"
+                                    ? "Interactive service tool job failed."
+                                    : "Interactive service tool job did not launch any entrypoints.",
+                            content: jobDef,
+                            callbackAfterDialog: this.finalizeServiceStopped,
+                        });
+                    } else {
+                        timeout = 2000;
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        },
+        async finalizeServiceStopped() {
+            console.log("finalizeServiceStopped");
+            this.serviceStarting = false;
+            this.serviceToolEntryPoint = null;
+            this.allServiceToolEntryPoints = [];
+            await this.setServiceToolErrorsIfNeeded();
         },
         async stopService() {
             this.serviceStopping = true;

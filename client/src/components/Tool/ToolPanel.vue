@@ -74,6 +74,7 @@ export default {
             showLoading: true,
             showTool: false,
             showErrorDialog: false,
+            callbackAfterDialog: null,
             toolConfig: {},
             messageObj: this.getDefaultMessageObj(),
             errorObj: this.getDefaultErrorObj(),
@@ -90,9 +91,17 @@ export default {
         // toolConfig() {
         //     this.onSetError(null);
         // },
-        showErrorDialog(showErrorDialog) {
+        async showErrorDialog(showErrorDialog) {
+            console.log("showErrorDialog");
             if (!showErrorDialog) {
+                console.log("after dialog");
+                const callbackAfterDialog = this.callbackAfterDialog;
                 this.onSetError(null);
+                if (callbackAfterDialog) {
+                    console.log("calling callback");
+                    console.log(callbackAfterDialog);
+                    await callbackAfterDialog();
+                }
             }
         },
     },
@@ -113,6 +122,7 @@ export default {
                 message: null,
                 title: null,
                 content: null,
+                callbackAfterDialog: null,
             };
         },
         onChangeVersion(newVersion) {
@@ -129,6 +139,7 @@ export default {
             if (errorObj) {
                 this.errorObj = { ...this.errorObj, ...errorObj };
             }
+            this.callbackAfterDialog = this.errorObj.callbackAfterDialog;
             this.showErrorDialog = this.errorObj.dialog;
         },
         requestTool(version) {
