@@ -5,7 +5,11 @@ Revises: 92fb564c7095
 Create Date: 2023-10-15 22:09:32.888292
 
 """
-from sqlalchemy import Column, Text, Boolean
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Text,
+)
 
 from galaxy.model.migrations.util import (
     add_column,
