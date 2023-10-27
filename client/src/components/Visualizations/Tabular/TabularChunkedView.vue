@@ -166,8 +166,19 @@ function nextChunk() {
         });
 }
 
-function isComment(row_el: string | undefined) {
+function isComment(row_el: string | undefined): boolean {
     return row_el!.startsWith("#");
+}
+
+
+function getColspan(elIndex: number, row: string[], columns: string[]): number | undefined {
+    const lastColumnInRow: boolean = elIndex + 1 === row.length
+    const missingColsInRow: number = columns.length - row.length
+    if (lastColumnInRow && missingColsInRow > 0) {
+      return 1 + missingColsInRow
+    } else {
+      return undefined
+    }
 }
 
 onMounted(() => {
@@ -193,15 +204,11 @@ onMounted(() => {
             <b-tbody>
                 <b-tr v-for="(row, index) in tabularData.rows" :key="index">
                     <b-td
-                        v-for="(element, elementIndex) in row.slice(0, -1)"
+                        v-for="(element, elementIndex) in row"
                         :key="elementIndex"
-                        :class="isComment(row[0]) ? null : columnStyle[elementIndex]">
+                        :class="isComment(row[0]) ? undefined : columnStyle[elementIndex]"
+                        :colspan="getColspan(elementIndex, row, columns)">
                         {{ element }}
-                    </b-td>
-                    <b-td
-                        :class="isComment(row[0]) ? null : columnStyle[row.length - 1]"
-                        :colspan="1 + columns.length - row.length">
-                        {{ row.slice(-1)[0] }}
                     </b-td>
                 </b-tr>
             </b-tbody>

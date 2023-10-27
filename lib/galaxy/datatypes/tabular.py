@@ -2098,10 +2098,11 @@ class GSuite(Tabular):
         return True
 
     def get_mime(self):
-        return "text/plain"
+        return "text/tab-separated-values"
 
     @staticmethod
     def _parse_file(input_file, include_data=False):
+        # TODO: refactor to mimic or use iter_headers() in sniff.py?
         from collections import defaultdict
 
         hash_count_to_lines = defaultdict(list)
