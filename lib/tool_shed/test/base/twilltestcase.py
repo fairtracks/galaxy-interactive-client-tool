@@ -15,6 +15,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Tuple,
 )
 from urllib.parse import (
     quote_plus,
@@ -31,8 +32,8 @@ from mercurial import (
 )
 from playwright.sync_api import Page
 from sqlalchemy import (
-    and_,
     false,
+    select,
 )
 
 import galaxy.model.tool_shed_install as galaxy_model
@@ -572,20 +573,7 @@ class StandaloneToolShedInstallationClient(ToolShedInstallationClient):
     def get_installed_repository_for(
         self, owner: Optional[str] = None, name: Optional[str] = None, changeset: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        clause_list = []
-        if name is not None:
-            clause_list.append(galaxy_model.ToolShedRepository.table.c.name == name)
-        if owner is not None:
-            clause_list.append(galaxy_model.ToolShedRepository.table.c.owner == owner)
-        if changeset is not None:
-            clause_list.append(galaxy_model.ToolShedRepository.table.c.changeset_revision == changeset)
-        clause_list.append(galaxy_model.ToolShedRepository.table.c.deleted == false())
-        clause_list.append(galaxy_model.ToolShedRepository.table.c.uninstalled == false())
-
-        query = self._installation_target.install_model.context.query(galaxy_model.ToolShedRepository)
-        if len(clause_list) > 0:
-            query = query.filter(and_(*clause_list))
-        repository = query.one_or_none()
+        repository = get_installed_repository(self._installation_target.install_model.context, name, owner, changeset)
         if repository:
             return repository.to_dict()
         else:
@@ -707,7 +695,14 @@ class ShedTwillTestCase(ShedApiTestCase):
     def invalid_tools_labels(self) -> str:
         return "Invalid Tools" if self.is_v2 else "Invalid tools"
 
-    def create(self, cntrller="user", email="test@bx.psu.edu", password="testuser", username="admin-user", redirect=""):
+    def create(
+        self,
+        cntrller: str = "user",
+        email: str = "test@bx.psu.edu",
+        password: str = "testuser",
+        username: str = "admin-user",
+        redirect: Optional[str] = None,
+    ) -> Tuple[bool, bool, bool]:
         # HACK: don't use panels because late_javascripts() messes up the twill browser and it
         # can't find form fields (and hence user can't be logged in).
         params = dict(cntrller=cntrller, use_panels=False)
@@ -760,8 +755,9 @@ class ShedTwillTestCase(ShedApiTestCase):
         email: str = "test@bx.psu.edu",
         password: str = "testuser",
         username: str = "admin-user",
-        redirect: str = "",
+        redirect: Optional[str] = None,
         logout_first: bool = True,
+        explicit_logout: bool = False,
     ):
         if self.is_v2:
             # old version had a logout URL, this one needs to check
@@ -770,14 +766,14 @@ class ShedTwillTestCase(ShedApiTestCase):
 
         # Clear cookies.
         if logout_first:
-            self.logout()
+            self.logout(explicit=explicit_logout)
         # test@bx.psu.edu is configured as an admin user
         previously_created, username_taken, invalid_username = self.create(
             email=email, password=password, username=username, redirect=redirect
         )
         # v2 doesn't log you in on account creation... so force a login here
         if previously_created or self.is_v2:
-            # The acount has previously been created, so just login.
+            # The account has previously been created, so just login.
             # HACK: don't use panels because late_javascripts() messes up the twill browser and it
             # can't find form fields (and hence user can't be logged in).
             params = {"use_panels": False}
@@ -799,9 +795,19 @@ class ShedTwillTestCase(ShedApiTestCase):
     def _page(self) -> Page:
         return self._playwright_browser._page
 
-    def logout(self):
+    def logout(self, explicit: bool = False):
+        """logout of the current tool shed session.
+
+        By default this is a logout if logged in action,
+        however if explicit is True - ensure there is a session
+        and be explicit in logging out to provide extract test
+        structure.
+        """
         if self.is_v2:
-            self._playwright_browser.logout_if_logged_in()
+            if explicit:
+                self._playwright_browser.explicit_logout()
+            else:
+                self._playwright_browser.logout_if_logged_in()
         else:
             self.visit_url("/user/logout")
             self.check_page_for_string("You have been logged out")
@@ -918,7 +924,11 @@ class ShedTwillTestCase(ShedApiTestCase):
         self.check_for_strings(strings_displayed, strings_not_displayed)
 
     def check_repository_dependency(
-        self, repository: Repository, depends_on_repository, depends_on_changeset_revision=None, changeset_revision=None
+        self,
+        repository: Repository,
+        depends_on_repository: Repository,
+        depends_on_changeset_revision=None,
+        changeset_revision=None,
     ):
         if not self.is_v2:
             # v2 doesn't display repository repository dependencies, they are deprecated
@@ -1044,8 +1054,9 @@ class ShedTwillTestCase(ShedApiTestCase):
 
     def create_category(self, **kwd) -> Category:
         category_name = kwd["name"]
-        category = self.populator.get_category_with_name(category_name)
-        if category is None:
+        try:
+            category = self.populator.get_category_with_name(category_name)
+        except ValueError:
             # not recreating this functionality in the UI I don't think?
             category = self.populator.new_category(category_name)
             return category
@@ -1053,7 +1064,7 @@ class ShedTwillTestCase(ShedApiTestCase):
 
     def create_repository_dependency(
         self,
-        repository: Optional[Repository] = None,
+        repository: Repository,
         repository_tuples=None,
         filepath=None,
         prior_installation_required=False,
@@ -1063,7 +1074,6 @@ class ShedTwillTestCase(ShedApiTestCase):
         strings_displayed=None,
         strings_not_displayed=None,
     ):
-        assert repository
         repository_tuples = repository_tuples or []
         repository_names = []
         if complex:
@@ -1415,23 +1425,23 @@ class ShedTwillTestCase(ShedApiTestCase):
             self.check_for_strings(strings_displayed, strings_not_displayed)
 
     def get_or_create_repository(
-        self, category: Category, owner=None, strings_displayed=None, strings_not_displayed=None, **kwd
-    ) -> Optional[Repository]:
+        self, category: Category, owner: str, name: str, strings_displayed=None, strings_not_displayed=None, **kwd
+    ) -> Repository:
         # If not checking for a specific string, it should be safe to assume that
         # we expect repository creation to be successful.
         if strings_displayed is None:
-            strings_displayed = ["Repository", kwd["name"], "has been created"]
+            strings_displayed = ["Repository", name, "has been created"]
         if strings_not_displayed is None:
             strings_not_displayed = []
-        name = kwd["name"]
         repository = self.populator.get_repository_for(owner, name)
-        category_id = category.id
-        assert category_id
         if repository is None:
+            category_id = category.id
+            assert category_id
             self.visit_url("/repository/create_repository")
-            self.submit_form(button="create_repository_button", category_id=category_id, **kwd)
+            self.submit_form(button="create_repository_button", name=name, category_id=category_id, **kwd)
             self.check_for_strings(strings_displayed, strings_not_displayed)
             repository = self.populator.get_repository_for(owner, name)
+        assert repository
         return repository
 
     def get_repo_path(self, repository: Repository) -> str:
@@ -1500,9 +1510,9 @@ class ShedTwillTestCase(ShedApiTestCase):
         return [metadata_revision for metadata_revision in repository.metadata_revisions]
 
     def get_repository_metadata_by_changeset_revision(self, repository_id: int, changeset_revision):
-        return test_db_util.get_repository_metadata_for_changeset_revision(
+        return test_db_util.get_repository_metadata_by_repository_id_changeset_revision(
             repository_id, changeset_revision
-        ) or test_db_util.get_repository_metadata_for_changeset_revision(repository_id, None)
+        ) or test_db_util.get_repository_metadata_by_repository_id_changeset_revision(repository_id, None)
 
     def get_repository_metadata_revisions(self, repository: Repository) -> List[str]:
         return [
@@ -1510,10 +1520,11 @@ class ShedTwillTestCase(ShedApiTestCase):
             for repository_metadata in self._db_repository(repository).metadata_revisions
         ]
 
-    def _get_repository_by_name_and_owner(self, name: str, owner: str) -> Optional[Repository]:
+    def _get_repository_by_name_and_owner(self, name: str, owner: str) -> Repository:
         repo = self.populator.get_repository_for(owner, name)
         if repo is None:
             repo = self.populator.get_repository_for(owner, name, deleted="true")
+        assert repo
         return repo
 
     def get_repository_tip(self, repository: Repository) -> str:
@@ -1600,7 +1611,6 @@ class ShedTwillTestCase(ShedApiTestCase):
     ) -> None:
         self.browse_tool_shed(url=self.url)
         category = self.populator.get_category_with_name(category_name)
-        assert category
         self.browse_category(category)
         self.preview_repository_in_tool_shed(name, owner, strings_displayed=preview_strings_displayed)
         repository = self._get_repository_by_name_and_owner(name, owner)
@@ -2096,3 +2106,17 @@ def _get_tool_panel_section_from_repository_metadata(metadata):
     tool_panel_section_metadata = metadata["tool_panel_section"]
     tool_panel_section = tool_panel_section_metadata[tool_guid][0]["name"]
     return tool_panel_section
+
+
+def get_installed_repository(session, name, owner, changeset):
+    ToolShedRepository = galaxy_model.ToolShedRepository
+    stmt = select(ToolShedRepository)
+    if name is not None:
+        stmt = stmt.where(ToolShedRepository.name == name)
+    if owner is not None:
+        stmt = stmt.where(ToolShedRepository.owner == owner)
+    if changeset is not None:
+        stmt = stmt.where(ToolShedRepository.changeset_revision == changeset)
+    stmt = stmt.where(ToolShedRepository.deleted == false())
+    stmt = stmt.where(ToolShedRepository.uninstalled == false())
+    return session.scalars(stmt).one_or_none()

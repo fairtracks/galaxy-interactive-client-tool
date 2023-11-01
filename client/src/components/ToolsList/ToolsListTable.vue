@@ -10,6 +10,7 @@
             :key="item.id"
             :name="item.name"
             :section="item.panel_section_name"
+            :ontologies="item.ontologies"
             :description="item.description"
             :summary="item.summary"
             :help="item.help"
@@ -59,7 +60,12 @@ export default {
     },
     computed: {
         buffer() {
-            return this.tools.slice(0, this.bufferLen);
+            return this.tools.slice(0, this.bufferLen).map((tool) => {
+                return {
+                    ...tool,
+                    ontologies: tool.edam_operations.concat(tool.edam_topics),
+                };
+            });
         },
     },
     created() {
@@ -69,7 +75,7 @@ export default {
         onOpen(tool) {
             if (tool.id === "upload1") {
                 this.openGlobalUploadModal();
-            } else if (tool.form_style === "regular") {
+            } else if (tool.form_style === "regular" || tool.model_class === "InteractiveClientTool") {
                 // encode spaces in tool.id
                 const toolId = tool.id;
                 const toolVersion = tool.version;

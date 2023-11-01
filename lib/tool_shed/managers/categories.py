@@ -5,6 +5,8 @@ from typing import (
     List,
 )
 
+from sqlalchemy import select
+
 import tool_shed.util.shed_util_common as suc
 from galaxy import (
     exceptions,
@@ -24,6 +26,9 @@ class CategoryManager:
     def __init__(self, app: ToolShedApp):
         self.app = app
 
+    def get(self, encoded_category_id: str) -> Category:
+        return suc.get_category(self.app, encoded_category_id)
+
     def create(self, trans: ProvidesUserContext, category_request: CreateCategoryRequest) -> Category:
         name = category_request.name
         description = category_request.description or name
@@ -41,14 +46,9 @@ class CategoryManager:
             raise exceptions.RequestParameterMissingException('Missing required parameter "name".')
 
     def index_db(self, trans: ProvidesUserContext, deleted: bool) -> List[Category]:
-        category_db_objects: List[Category] = []
         if deleted and not trans.user_is_admin:
             raise exceptions.AdminRequiredException("Only administrators can query deleted categories.")
-        for category in (
-            trans.sa_session.query(Category).filter(Category.table.c.deleted == deleted).order_by(Category.table.c.name)
-        ):
-            category_db_objects.append(category)
-        return category_db_objects
+        return list(get_categories_by_deleted(trans.sa_session, deleted))
 
     def index(self, trans: ProvidesUserContext, deleted: bool) -> List[Dict[str, Any]]:
         category_dicts: List[Dict[str, Any]] = []
@@ -74,9 +74,15 @@ class CategoryManager:
             name=as_dict["name"],
             description=as_dict["description"],
             repositories=as_dict["repositories"],
+            deleted=as_dict["deleted"],
         )
 
 
 def get_value_mapper(app: ToolShedApp) -> Dict[str, Callable]:
     value_mapper = {"id": app.security.encode_id}
     return value_mapper
+
+
+def get_categories_by_deleted(session, deleted):
+    stmt = select(Category).where(Category.deleted == deleted).order_by(Category.name)
+    return session.scalars(stmt)

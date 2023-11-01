@@ -2864,6 +2864,21 @@ tools will not need to specify any attributes on this tag itself.]]>
         <xs:documentation xml:lang="en">This boolean indicates if this is an upload tool or not.</xs:documentation>
       </xs:annotation>
     </xs:attribute>
+    <xs:attribute name="interactive_service_tool_id" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Tool id of interactive service tool for interactive client tool to connect to.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="interactive_service_tool_version" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Version of interactive service tool for interactive client tool to connect to.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:attribute name="interactive_service_entrypoint_label" type="xs:string">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Label of interactive service tool entry point fo interactive client tool to connect to.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
   </xs:complexType>
 
 
@@ -3505,7 +3520,7 @@ Describes the parameter type - each different type as different semantics and
 the tool form widget is different. Currently valid parameter types are:
 ``text``,  ``integer``,  ``float``,  ``boolean``,  ``genomebuild``,  ``select``,
 ``color``,  ``data_column``,  ``hidden``,  ``hidden_data``,  ``baseurl``,
-``file``,  ``ftpfile``,  ``data``,  ``data_collection``,  ``library_data``,
+``file``,  ``ftpfile``,  ``data``,  ``data_collection``,
 ``drill_down``. The definition of supported parameter types as defined in the
 ``parameter_types`` dictionary in
 [/lib/galaxy/tools/parameters/basic.py](https://github.com/galaxyproject/galaxy/blob/dev/lib/galaxy/tools/parameters/basic.py).
@@ -3781,7 +3796,6 @@ allow access to Python code to generate options for a select list. See
       <xs:enumeration value="color"/>
       <xs:enumeration value="boolean"/>
       <xs:enumeration value="genomebuild"/>
-      <xs:enumeration value="library_data"/>
       <xs:enumeration value="select"/>
       <xs:enumeration value="data_column"/>
       <xs:enumeration value="hidden"/>

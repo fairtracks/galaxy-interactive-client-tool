@@ -125,7 +125,7 @@ class ModelPersistenceContext(metaclass=abc.ABCMeta):
 
                 if init_from:
                     self.permission_provider.copy_dataset_permissions(init_from, primary_data)
-                    primary_data.state = init_from.state
+                    primary_data.raw_set_dataset_state(init_from.state)
                 else:
                     self.permission_provider.set_default_hda_permissions(primary_data)
             else:
@@ -264,6 +264,8 @@ class ModelPersistenceContext(metaclass=abc.ABCMeta):
                 primary_data.set_peek()
             except Exception:
                 log.exception("Exception occured while setting dataset peek")
+
+            primary_data.set_total_size()
 
     def populate_collection_elements(
         self,
@@ -828,7 +830,7 @@ def persist_hdas(elements, model_persistence_context, final_job_state="ok"):
                     sa_session = (
                         model_persistence_context.sa_session or model_persistence_context.import_store.sa_session
                     )
-                    primary_dataset = sa_session.query(galaxy.model.HistoryDatasetAssociation).get(hda_id)
+                    primary_dataset = sa_session.get(galaxy.model.HistoryDatasetAssociation, hda_id)
 
                 sources = fields_match.sources
                 hashes = fields_match.hashes

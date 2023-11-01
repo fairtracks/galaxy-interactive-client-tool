@@ -347,7 +347,9 @@ class ReadyForExportMarkdownDirectiveHandler(GalaxyInternalMarkdownDirectiveHand
         pass
 
     def handle_invocation_time(self, line, invocation):
-        self.ensure_rendering_data_for("invocations", invocation)["create_time"] = invocation.create_time.isoformat()
+        self.ensure_rendering_data_for("invocations", invocation)["create_time"] = invocation.create_time.strftime(
+            "%Y-%m-%d, %H:%M:%S"
+        )
 
     def handle_dataset_type(self, line, hda):
         self.extend_history_dataset_rendering_data(hda, "ext", hda.ext, "*Unknown dataset type*")
@@ -547,7 +549,7 @@ class ToBasicMarkdownDirectiveHandler(GalaxyInternalMarkdownDirectiveHandler):
         return (content, True)
 
     def handle_invocation_time(self, line, invocation):
-        content = literal_via_fence(invocation.create_time.isoformat())
+        content = literal_via_fence(invocation.create_time.strftime("%Y-%m-%d, %H:%M:%S"))
         return (content, True)
 
     def handle_dataset_name(self, line, hda):
@@ -749,7 +751,8 @@ history_dataset_collection_display(input={})
             target_match = step_match
             name = find_non_empty_group(target_match)
             ref_object_type = "job"
-            ref_object = invocation.step_invocation_for_label(name).job
+            invocation_step = invocation.step_invocation_for_label(name)
+            ref_object = invocation_step and invocation_step.job
         else:
             target_match = None
             ref_object = None
